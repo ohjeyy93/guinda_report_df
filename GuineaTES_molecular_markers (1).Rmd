@@ -1,0 +1,436 @@
+---
+title: "Molecular Markers of Resistance - Guinea 2017-2019"
+author: ""
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    code_folding: hide
+    highlight: zenburn
+    number_sections: no
+    theme: spacelab
+    toc: yes
+    toc_collapse: no
+    toc_depth: 4
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+options(width = 120)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, collapse= TRUE)
+```
+
+
+```{r}
+if (!require("pacman")) install.packages("pacman")     #installs package "pacman" if not present
+
+pacman::p_load(
+               leaflet,
+               readxl, kableExtra, install = TRUE)
+
+```
+
+# **Executive Summary**
+
+Data on molecular markers of resistance can complement clinical efficacy data from therapeutic efficacy studies. A total of 869 samples from P. falciparum positive participants in studies conducted in 2017-2019 in N'Zérékoré, Dabola, Labé, and Forécariah prefectures in Guinea were sequenced for the *pfk13* (**artemisinin**), *pfmdr1* (**lumefantrine** and **amodiaquine**), *pfcrt* (**chloroquine**, **lumefantrine** and **amodiaquine**), *pfdhfr* (**pyrimethamine**), *pfdhps* (**sulfadoxine**), and *pfcytb* (**atovaquone**) resistance markers.
+
+Major findings included:
+
+* There was no evidence of any *pfk13* mutations associated with artemisinin resistance
+* Overall, high rates of the *pfmdr1* N86 (83-99%) and 184F (61-81%) alleles coupled with high rates of the wild-type *pfcrt* K76 allele (83-96%) suggest a circulating parasite population that may be predisposed to reduced lumefantrine susceptibility
+* The highest rates of the *pfmdr1* 86Y allele (17%) and the *pfcrt* 76T allele (17%), both associated with reduced amodiaquine susceptibility, were found in Labé region where seasonal malaria chemoprevention SMC is implemented
+* While all three notable *pfdhfr* mutations were found at near fixation, rates of the key *pfdhps* K540E (3.3-7.7%) and A581G (1.1-3.4%) mutations were well below the WHO thresholds for meaningful SP resistance (prevalence of 95% for K540E and 10% for A581G)
+
+These data are consistent with the continued high efficacy of ACTs in Guinea. There may be preliminary evidence of selection of markers associated with amodiaquine resistance in SMC zones. There is no indication of high-level SP resistance. The Guinea National Malaria Control Program should continue routine monitoring of antimalarial resistance, including through molecular surveillance.
+
+# **Methodology**
+
+## Sample collection and laboratory analyses
+
+A retrospective analysis was conducted on molecular markers from samples collected from 2017-2019 prospective clinical outcome trials in Guinea. Two drugs, artemether-lumefantrine and artesunate-amodiaquine were tested in four sentinel sites: N'Zérékoré (2017 and 2019), Dabola (2017 and 2019), Labé (2018), and Forécariah (2019)
+Samples came from children with uncomplicated P. falciparum monoinfection presenting with febrile illness. Children were treated and followed for 28 days to assess clinical and parasitological response. Blood spots were collected on Whatman 903 filter at Day 0 (D0) and during follow up visits after Day 3, dried, and stored in individual Ziploc bags with desiccant. All baseline D0 samples and Day of Failure (DoF) samples from participants with recurrent parasitemia were included in the molecular analysis. A total of a total of 869 samples were included, included 73 D0 and DoF samples that were run individually for participants with recurrent parasitemia and 796 D0 samples from nonfailure patients without recurrent parasitemia that were pooled prior to DNA extraction (**Table 1**). 
+
+A total of 178 pools were constructed from the 796 D0 nonfailure samples. For each province, the D0 nonfailure samples were aligned from lowest to highest parasite density as measured by microscopy, and binned into pools. PCRs were performed to amplify the full-length *pfk13* (**artemisinin**), *pfmdr1* (**lumefantrine** and **amodiaquine**), *pfcrt* (**chloroquine**, **lumefantrine** and **amodiaquine**), *pfdhfr* (**pyrimethamine**), *pfdhps* (**sulfadoxine**), and *pfcytb* (**atovaquone**) genes for the 73 individual patient samples and the 178 pools using a previously described protocol. The amplification products were sequenced using the Malaria Resistance Surveillance (MaRS) protocol. In brief, unique sequence indices were added to PCR amplicons for the 73 individual patient samples and the 178 pools using the Illumina Nextera XT kit (Illumina, USA). Two separate sequencing runs were performed, one for the individual samples, and one for the pools. 
+
+
+```{r import}
+require(readxl)
+
+### function for converting French version to English database
+
+data_individual = as.data.frame(read.csv("Databases\\GN17_18_19_individual_EPI.csv"))
+data_pooled = as.data.frame(read.csv("Databases\\GN17_18_19_pooled_EPI.csv"))
+data_weighted = as.data.frame(read.csv("Databases\\GN17_18_19_weighted_bysite_EPI.csv"))
+data_microsatellite = as.data.frame(read_excel("Databases\\Resultats _ Microsatellite_ 24NOV2021.xlsx",sheet=1,skip=3))
+
+## VAF to numeric
+data_individual$VAF = as.numeric(gsub("%","",data_individual$VAF))/100
+data_pooled$VAF = as.numeric(gsub("%","",data_pooled$VAF))/100
+data_weighted$WVAF = as.numeric(gsub("%","",data_weighted$WVAF))/100
+
+
+### append microsatellite classifications to individual data
+
+sitecode = rep(NA,length(data_individual$Sample))
+sitecode[data_individual$SITE == "Maferinyah"] = "01"
+sitecode[data_individual$SITE == "Lay-SarÃ¨"] = "02"
+sitecode[data_individual$SITE == "Hamdalaye"] = "03"
+sitecode[data_individual$SITE == "Dorota"] = "04"
+
+extractshortcode = function(longcode){
+  temp=(strsplit(longcode,"Pf")[[1]][1])
+  paste(strsplit(temp,split="")[[1]][(nchar(temp)-2):nchar(temp)],collapse="")
+}
+
+matched_ID = sapply(1:length(data_individual$Sample), function (x) data_microsatellite$`Sample ID`[data_microsatellite$Year == 2000 + data_individual$Year[x]][grep(paste(sitecode[x],"-",extractshortcode(data_individual$Sample[x]),sep=""), data_microsatellite$`Sample ID`[data_microsatellite$Year == 2000 + data_individual$Year[x]])[1]])
+
+classification = rep(NA,length(data_individual$Sample))
+classification[data_microsatellite$`Probability of Recrudescence`[match(matched_ID,data_microsatellite$`Sample ID`)] > 0.5] = "Recrudescence"
+classification[data_microsatellite$`Probability of Recrudescence`[match(matched_ID,data_microsatellite$`Sample ID`)] <= 0.5] = "Reinfection"
+classification[data_microsatellite$`Probability of Recrudescence`[match(matched_ID,data_microsatellite$`Sample ID`)] <= 0.5] = "Reinfection"
+classification[matched_ID == "01-129_D0"] = "Early Treatment Failure"
+
+data_individual = cbind(data_individual,classification = classification)
+
+arms_individual = list(data_individual$SITE %in% "Dorota" & data_individual$Year == "17",
+            data_individual$SITE %in% "Dorota" & data_individual$Year == "19",
+            data_individual$SITE %in% "Hamdalaye" & data_individual$Year == "17",
+            data_individual$SITE %in% "Hamdalaye" & data_individual$Year == "19",
+            data_individual$SITE %in% "Lay-SarÃ¨" & data_individual$Year == "18",
+            data_individual$SITE %in% "Maferinyah" & data_individual$Year == "18")
+arms_individual_plus_total = list(data_individual$SITE %in% "Dorota" & data_individual$Year == "17",
+            data_individual$SITE %in% "Dorota" & data_individual$Year == "19",
+            data_individual$SITE %in% "Hamdalaye" & data_individual$Year == "17",
+            data_individual$SITE %in% "Hamdalaye" & data_individual$Year == "19",
+            data_individual$SITE %in% "Lay-SarÃ¨" & data_individual$Year == "18",
+            data_individual$SITE %in% "Maferinyah" & data_individual$Year == "18",
+            rep(TRUE,length(data_individual$SITE)))
+arms_pooled = list(data_pooled$SITE %in% "Dorota" & data_pooled$Year == "17",
+            data_pooled$SITE %in% "Dorota" & data_pooled$Year == "19",
+            data_pooled$SITE %in% "Hamdalaye" & data_pooled$Year == "17",
+            data_pooled$SITE %in% "Hamdalaye" & data_pooled$Year == "19",
+            data_pooled$SITE %in% "Lay-SarÃ¨" & data_pooled$Year == "18",
+            data_pooled$SITE %in% "Maferinyah" & data_pooled$Year == "18")
+arms_pooled_plus_total = list(data_pooled$SITE %in% "Dorota" & data_pooled$Year == "17",
+            data_pooled$SITE %in% "Dorota" & data_pooled$Year == "19",
+            data_pooled$SITE %in% "Hamdalaye" & data_pooled$Year == "17",
+            data_pooled$SITE %in% "Hamdalaye" & data_pooled$Year == "19",
+            data_pooled$SITE %in% "Lay-SarÃ¨" & data_pooled$Year == "18",
+            data_pooled$SITE %in% "Maferinyah" & data_pooled$Year == "18",
+            rep(TRUE,length(data_pooled$SITE)))
+arms_weighted = list(data_weighted$Site %in% "Dorota" & data_weighted$Year == "17",
+            data_weighted$SITE %in% "Dorota" & data_weighted$Year == "19",
+            data_weighted$SITE %in% "Hamdalaye" & data_weighted$Year == "17",
+            data_weighted$SITE %in% "Hamdalaye" & data_weighted$Year == "19",
+            data_weighted$SITE %in% "Lay-SarÃ¨" & data_weighted$Year == "18",
+            data_weighted$SITE %in% "Maferinyah" & data_weighted$Year == "18")
+arms_weighted_plus_total = list(data_weighted$SITE %in% "Dorota" & data_weighted$Year == "17",
+            data_weighted$SITE %in% "Dorota" & data_weighted$Year == "19",
+            data_weighted$SITE %in% "Hamdalaye" & data_weighted$Year == "17",
+            data_weighted$SITE %in% "Hamdalaye" & data_weighted$Year == "19",
+            data_weighted$SITE %in% "Lay-SarÃ¨" & data_weighted$Year == "18",
+            data_weighted$SITE %in% "Maferinyah" & data_weighted$Year == "18",
+            rep(TRUE,length(data_weighted$SITE)))
+arm_names = c("N'Zérékoré '17","N'Zérékoré '19","Dabola '17","Dabola '19","Labé '18","Forécariah '18")
+arm_names_total = c("N'Zérékoré '17","N'Zérékoré '19","Dabola '17","Dabola '19","Labé '18","Forécariah '18","Total")
+
+require(kableExtra)
+
+medianIQR = function(x) { 
+  paste(median(x,digits=2)," (",format(range(x)[1],digits=1),"-",format(range(x)[2],scientific=FALSE,digits=2),")",sep="")
+}
+
+table_summary = as.data.frame(matrix("", 9, length(arms_individual_plus_total)*1))
+# testing rate for patients with fever
+rownames(table_summary)[1] = "Number individual samples"
+table_summary[1,] = c(sapply(1:length(arms_individual_plus_total), function (x) length(unique(data_individual$Sample[arms_individual_plus_total[[x]]],na.rm=TRUE))))
+rownames(table_summary)[2] = "Day 0"
+table_summary[2,] = c(sapply(1:length(arms_individual_plus_total), function (x) length(unique(data_individual$Sample[arms_individual_plus_total[[x]] & substr(data_individual$Sample,7,8)=="00"],na.rm=TRUE))))
+rownames(table_summary)[3] = "Day Failure"
+table_summary[3,] = c(sapply(1:length(arms_individual_plus_total), function (x) length(unique(data_individual$Sample[arms_individual_plus_total[[x]] & substr(data_individual$Sample,7,8)!="00"],na.rm=TRUE))))
+rownames(table_summary)[4] = "Early Treatment Failure"
+table_summary[4,] = c(sapply(1:length(arms_individual_plus_total), function (x) length(unique(data_individual$Sample[arms_individual_plus_total[[x]]  & data_individual$TreatmentDay>0 & data_individual$classification %in% "Early Treatment Failure"],na.rm=TRUE))))
+rownames(table_summary)[5] = "Reinfection"
+table_summary[5,] = c(sapply(1:length(arms_individual_plus_total), function (x) length(unique(data_individual$Sample[arms_individual_plus_total[[x]]  & data_individual$TreatmentDay>0 & data_individual$classification %in% "Reinfection"],na.rm=TRUE))))
+rownames(table_summary)[6] = "Recrudescence"
+table_summary[6,] = c(sapply(1:length(arms_individual_plus_total), function (x) length(unique(data_individual$Sample[arms_individual_plus_total[[x]]  & data_individual$TreatmentDay>0 & data_individual$classification %in% "Recrudescence"],na.rm=TRUE))))
+
+rownames(table_summary)[7] = "Number of Pooled Day 0 Samples"
+table_summary[7,] = c(sapply(1:length(arms_pooled_plus_total), function (x) sum(sapply(unique(data_pooled$Sample[arms_pooled_plus_total[[x]]]), function (y) data_pooled$PooledSize[which(data_pooled$Sample == y)[1]]))))
+rownames(table_summary)[8] = "Number of Pools"
+table_summary[8,] = c(sapply(1:length(arms_pooled_plus_total), function (x) length(unique(data_pooled$Sample[arms_pooled_plus_total[[x]]],na.rm=TRUE))))
+rownames(table_summary)[9] = "Median Pool size (Range)"
+table_summary[9,] = c(sapply(1:length(arms_pooled_plus_total), function (x) medianIQR(sapply(unique(data_pooled$Sample[arms_pooled_plus_total[[x]]]), function (y) data_pooled$PooledSize[which(data_pooled$Sample == y)[1]]))))
+
+colnames(table_summary) = c(arm_names_total)
+
+
+
+kbl(table_summary, caption = "Table 1. Sample size for individual and pooled analysis of molecular markers of resistance in 4 sites in Guinea, 2017-2019", escape=FALSE) %>%
+  add_indent(c(2:6), level_of_indent = 1) %>%
+  add_indent(c(4:6), level_of_indent = 1) %>%
+
+ kable_classic(full_width = F)
+
+```
+
+
+## Statistical analysis
+
+Sequences were analyzed at loci representing the major reportable SNPs for each gene. A sample was considered a sequencing success if at each loci: the percent Quality (Q) of 30 or higher and greater than five reads was observed. SNPs were analyzed using Nf-NeST (https://github.com/CDCgov/Nf-NeST) using an ensemble approach of three SNP callers (samtools, gatk and freebayes) and visually confirmed using the Geneious Prime software as a secondary quality control. 
+
+For each province, the weighted variant allele frequency (VAF) at each polymorphic site was calculated using the formula: ${VAF}=\sum_{i=1}^N{VAF}_{i}w_i/{\sum{w_i}}$. Here, ${VAF}_{i}$ is the variant allele frequency for DNA sample $i$, $w_i$ is the weight for sample $i$, and $N$ is the total number of individual and pooled DNA samples for each province. For the 73 individually-sequenced samples, $w_i=1$, while for pooled samples, $w_i$ was the number of samples included in the pool. For each province, all Day 0 samples and Day of Failure samples from confirmed reinfections were included in this analysis.  
+
+For individual samples, haplotypes were constructed if the major frequency allele occurred at more than 95% of reads for all eight dhfr and dhps loci of interest. Samples where this condition was not met were considered to have more than one strain present, precluding inference of haplotypes. 
+
+```{r SNP table code}
+
+format0 = function(x,digits=2){
+  sapply(x,function (y) format(y,digits = digits))
+}
+
+calculate_weightedVAF = function(subsetdata_pooled,subsetdata_individual, SNPlist){
+
+  samplesize = sapply(1:length(SNPlist), function (y) sum(length(!is.na(subsetdata_individual$VAF[subsetdata_individual$G_annotation == SNPlist[y]])),sum(subsetdata_pooled$PooledSize[subsetdata_pooled$G_annotation == SNPlist[y] & !is.na(subsetdata_pooled$VAF)]),na.rm=TRUE))
+  weighted_VAF = sapply(1:length(SNPlist), function (y) (sum(subsetdata_individual$VAF[subsetdata_individual$G_annotation == SNPlist[y] & !is.na(subsetdata_individual$VAF)])+sum(subsetdata_pooled$PooledSize[subsetdata_pooled$G_annotation == SNPlist[y] & !is.na(subsetdata_pooled$VAF)]*subsetdata_pooled$VAF[subsetdata_pooled$G_annotation == SNPlist[y] & !is.na(subsetdata_pooled$VAF)]))/samplesize[y])
+  cbind(samplesize,paste(format0(weighted_VAF*100,digits=2),"%",sep=""))
+}
+  
+generateSNPtable = function(gene) {
+  
+  
+    SNPlist = unique(union(data_pooled$G_annotation[data_pooled$GENE %in% gene],data_individual$G_annotation[data_individual$GENE %in% gene]))
+    SNPlist_position = as.numeric(gsub("[A-Z]*","",SNPlist))
+    SNPlist = SNPlist[order(SNPlist_position)]
+  
+    SNPlist_AAwildtype = substr(gsub("[0-9]*","",SNPlist),1,1)
+    SNPlist_AAmutation = substr(gsub("[0-9]*","",SNPlist),2,2)
+    SNPlist_position = as.numeric(gsub("[A-Z]*","",SNPlist))
+
+  
+    SNPtable = do.call(cbind,lapply(1:length(arms_individual), function (x) calculate_weightedVAF(data_pooled[arms_pooled[[x]] & data_pooled$GENE %in% gene,],subsetdata_individual=data_individual[arms_individual[[x]] & data_individual$GENE %in% gene & !(data_individual$classification == "Recrudescence" & data_individual$TreatmentDay!=0),],SNPlist)))
+  
+  
+  rownames(SNPtable) = SNPlist
+  SNPtable[SNPtable=="NaN%"] = ""
+  colnames(SNPtable) = NULL
+  SNPtable
+}
+```
+```{r generate haplotype table}
+
+minVAF = 0.95
+
+counthaplotypes = function(subsetdata_individual,haplotypelist,possible_haplotypes_logical) {
+  uniqueIDs = unique(subsetdata_individual$Sample)
+  haplotype_count = rep(0,dim(possible_haplotypes_logical)[1])
+  if (length(uniqueIDs)>0) {
+    for (i in 1:length(uniqueIDs)) {
+      individualVAFdata = subsetdata_individual[subsetdata_individual$Sample == uniqueIDs[i],] 
+      individualVAFdata = individualVAFdata[match(haplotypelist,individualVAFdata$G_annotation),]
+      if (sum(individualVAFdata$VAF>minVAF | individualVAFdata$VAF< (1-minVAF),na.rm=TRUE) == length(haplotypelist)) { ## only if all VAF > minVAF or < 1-minVAF (ie no mixed strains)
+        individualVAFdata$VAF[individualVAFdata$VAF < (1-minVAF)] = 0
+        individualVAFdata$VAF[individualVAFdata$VAF > minVAF] = 1
+        whichhaplotype_match = which(sapply(1:dim(possible_haplotypes_logical)[1], function (x) sum(possible_haplotypes_logical[x,] == individualVAFdata$VAF))==length(haplotypelist))
+        haplotype_count[whichhaplotype_match] = haplotype_count[whichhaplotype_match] + 1
+      }
+    }
+  }  
+  ret=paste(haplotype_count, " (",format0(haplotype_count/sum(haplotype_count)*100,digits=2),"%)",sep="")
+  ret = c(sum(haplotype_count),ret)
+  ret[ret=="0 (0%)"] = "0"
+  ret[ret=="0 (NaN%)"] = "0"
+  ret
+}
+
+generate_haplotype_table = function(haplotype_definitions,gene) {
+    haplotypelist = haplotype_definitions
+    haplotypelist_AAwildtype = substr(gsub("[0-9]*","",haplotypelist),1,1)
+    haplotypelist_AAmutation = substr(gsub("[0-9]*","",haplotypelist),2,2)
+    haplotypelist_position = as.numeric(gsub("[A-Z]*","",haplotypelist))
+    
+    
+    possible_haplotypes=expand.grid(lapply(1:length(haplotypelist_AAmutation), function (x) c(haplotypelist_AAwildtype[x],haplotypelist_AAmutation[x])))
+    possible_haplotypes_logical=expand.grid(lapply(1:length(haplotypelist_AAmutation), function (x) c(0,1)))
+  
+     
+    table_haplotype = sapply(1:length(arms_individual), function (x) counthaplotypes(data_individual[arms_individual[[x]] & data_individual$GENE %in% gene & data_individual$G_annotation %in% haplotypelist & !(data_individual$classification == "Recrudescence" & data_individual$TreatmentDay!=0),],haplotypelist,possible_haplotypes_logical))
+    
+    rownames(table_haplotype) = c("Number of Samples",sapply(1:dim(possible_haplotypes)[1], function (x) paste(sapply(1:dim(possible_haplotypes)[2], function (y) as.character(possible_haplotypes[x,y])),collapse="")))
+    
+    table_haplotype_collapsed = table_haplotype[-which(sapply(1:dim(table_haplotype)[1],function(x) sum(as.numeric(table_haplotype[x,]))) == 0),]
+    
+    table_haplotype_collapsed
+}
+
+```
+
+# **Results**
+
+## *pfk13*
+
+None of the samples analyzed had any *pfk13* mutations associated with artemisinin resistance (**Table 2**). The only pfk13 mutation identified was A578S, found in Dabola,
+Labé, and Forécariah prefectures at <1% prevalence levels. This mutation has previously been reported throughout Sub-Saharan Africa and is not thought to be associated with changes to artemisinin susceptibility.
+```{r pfk13}
+
+SNPtable = generateSNPtable("K13")
+
+firstrow_labels = (c(" ", rep(2,length(arm_names))))
+names(firstrow_labels) = c("",arm_names)
+secondrow_labels = (c(" ", rep(1,2*length(arm_names))))
+names(secondrow_labels) = c("",rep(c("N","%VAF"),length(arm_names)))
+
+kbl(SNPtable, caption = "Table 2. Prevalence of mutations in pfk13, 4 sites in Guinea, 2017-2019", escape=FALSE) %>%
+  add_header_above(secondrow_labels) %>%
+add_header_above(firstrow_labels) %>%
+  footnote(general="VAF = variant allele frequency",general_title="") %>%
+ kable_classic(full_width = F)
+```
+
+
+## *pfmdr1*
+
+The *pfmdr1* gene is a well-studied gene that has been implicated in resistance to multiple antimalarials, including lumefantrine and amodiaquine. Often, mutations at the same locus cause changes in susceptibility to different antimalarials in different directions. For example, the wildtype N86 allele is associated with increased risk of lumefantrine resistance but decreased risk of amodiaquine resistance. In this study the N86 allele predominated at this locus, with a maximum of only 17% of samples in Labé exhibiting the N86Y mutation. Notably, N86Y was entirely absent from Dabola, and nearly absent (<1%) in Forécariah (**Table 3**). 
+
+The Y184F mutation is putatively associated with increased resistance to lumefantrine. This allele predominated in all 4 prefectures, ranging from 61% prevalence in N’Zérékoré to 81% in Labé.
+
+In the individual samples for which haplotypes could be inferred, the only haplotypes were NYD and NFD at the 86, 184, and 1246 codons. However, haplotypes were only able to be inferred for a total of 8 samples (**Table 4**).
+
+```{r pfmdr1}
+
+SNPtable = generateSNPtable("PfMDR1 ")
+
+firstrow_labels = (c(" ", rep(2,length(arm_names))))
+names(firstrow_labels) = c("",arm_names)
+secondrow_labels = (c(" ", rep(1,2*length(arm_names))))
+names(secondrow_labels) = c("",rep(c("N","%VAF"),length(arm_names)))
+
+kbl(SNPtable, caption = "Table 3. Prevalence of mutations in pfmdr1, 4 sites in Guinea, 2017-2019", escape=FALSE) %>%
+  add_header_above(secondrow_labels) %>%
+add_header_above(firstrow_labels) %>%
+  footnote(general="VAF = variant allele frequency",general_title="") %>%
+ kable_classic(full_width = F)
+```
+
+
+```{r}
+gene = "PfMDR1 "
+pfmdr1_haplotype_definitions = c("N86Y","Y184F","D1246Y")
+table_haplotype_collapsed = generate_haplotype_table(pfmdr1_haplotype_definitions,gene)
+firstrow_labels = (c(" ", rep(1,length(arm_names))))
+names(firstrow_labels) = c("",arm_names)
+
+kbl(table_haplotype_collapsed, caption = "Table 4. Prevalence of pfmdr1 haplotypes, 4 sites in Guinea, 2017-2019", escape=FALSE) %>%
+add_header_above(firstrow_labels) %>%
+  footnote(general=paste("Haplotypes defined at codons: ",paste(as.numeric(gsub("[A-Z]*","",pfmdr1_haplotype_definitions)),collapse=" "),"; Wildtype: ",paste(substr(pfmdr1_haplotype_definitions,1,1),collapse=""),sep=""),general_title="") %>%
+ kable_classic(full_width = F)
+
+```
+
+## *pfcrt*
+
+Mutations in the pfcrt gene are very strongly associated with chloroquine resistance, and are the source of the gene name. However, certain mutations have also been implicated in lumefantrine and amodiaquine resistance; notably, the wildtype K76 allele has been associated with lumefantrine resistance but amodiaquine susceptibility. In this study, the triplet of canonical mutations conferring chloroquine resistance (M74I, N75E, and K76T) were found at low levels, ranging from approximately 4% in Forécariah to approximately 13%-17% in Dabola and Labé (**Table 5**). The most common haplotypes able to be inferred were CVMNK and CVIET  (**Table 6**).
+
+```{r pfcrt}
+
+SNPtable = generateSNPtable("PfCRT")
+
+firstrow_labels = (c(" ", rep(2,length(arm_names))))
+names(firstrow_labels) = c("",arm_names)
+secondrow_labels = (c(" ", rep(1,2*length(arm_names))))
+names(secondrow_labels) = c("",rep(c("N","%VAF"),length(arm_names)))
+
+kbl(SNPtable, caption = "Table 5. Prevalence of mutations in pfcrt, 4 sites in Guinea, 2017-2019", escape=FALSE) %>%
+  add_header_above(secondrow_labels) %>%
+add_header_above(firstrow_labels) %>%
+  footnote(general="VAF = variant allele frequency",general_title="") %>%
+ kable_classic(full_width = F)
+```
+
+```{r}
+gene = "PfCRT"
+pfcrt_haplotype_definitions = c("C72S","V73V","M74I","N75E","K76T")
+table_haplotype_collapsed = generate_haplotype_table(pfcrt_haplotype_definitions,gene)
+firstrow_labels = (c(" ", rep(1,length(arm_names))))
+names(firstrow_labels) = c("",arm_names)
+
+kbl(table_haplotype_collapsed, caption = "Table 6. Prevalence of pfcrt haplotypes, 4 sites in Guinea, 2017-2019", escape=FALSE) %>%
+add_header_above(firstrow_labels) %>%
+  footnote(general=paste("Haplotypes defined at codons: ",paste(as.numeric(gsub("[A-Z]*","",pfcrt_haplotype_definitions)),collapse=" "),"; Wildtype: ",paste(substr(pfcrt_haplotype_definitions,1,1),collapse=""),sep=""),general_title="") %>%
+ kable_classic(full_width = F)
+
+
+```
+
+## *pfdhfr* and *pfdhps*
+
+The risk of *P. falciparum* resistance to sulfadoxine-pyrimethamine occurs when there is a combination of mutations at specific codon positions in *pfdhfr* and *pfdhps*, two enzymes involved in the folate biosynthesis pathway. Resistance to SP can be inferred from the cumulative number of mutations at the 51, 59, and 108 codons in *pfdhfr* and the 436, 437, 540, 581, and 613 codons in *pfdhps*. Parasite genotypes are therefore typically defined by the number of mutations present in both genes.
+
+In this study, all three canonical mutations in *pfdhfr* were near fixation in all four sites (**Table 7**). For *pfdhps*, the A437G mutation was present at moderate to high levels in all four provinces, ranging from 67% in Dabola to 88% in N'Zérékoré (**Table 8**). However, the key K540E mutation, present in the "quintiple" mutant, was present at much lower levels, ranging from 3.3% to 7.7%. The defining mutation in the "sextuple" mutant, A581G, was present at even lower levels, ranging from 1.1% to 3.4%.  These rates were well below the WHO thresholds for meaningful SP resistance (prevalence of 95% for K540E and 10% for A581G).
+
+In individual samples for which haplotypes could be inferred, the most common pfdhfr/pfdhps haplotype was the canonical quadruple IRN/SGKAA mutant (**Table 9**). Two quintiple mutants were identified, one in Dabola and one in N’Zérékoré, with the Dabola one being the canonical quintiple IRN/SGEAA mutant. One, non-canonical, sextuple mutant (IRN/AGKGS) was found in Forécariah.
+```{r dhfr}
+
+SNPtable = generateSNPtable("DHFR")
+
+firstrow_labels = (c(" ", rep(2,length(arm_names))))
+names(firstrow_labels) = c("",arm_names)
+secondrow_labels = (c(" ", rep(1,2*length(arm_names))))
+names(secondrow_labels) = c("",rep(c("N","%VAF"),length(arm_names)))
+
+kbl(SNPtable, caption = "Table 7. Prevalence of mutations in pfdhfr, 4 sites in Guinea, 2017-2019", escape=FALSE) %>%
+  add_header_above(secondrow_labels) %>%
+add_header_above(firstrow_labels) %>%
+  footnote(general="VAF = variant allele frequency",general_title="") %>%
+ kable_classic(full_width = F)
+```
+```{r dhps}
+
+SNPtable = generateSNPtable("DHPS")
+
+firstrow_labels = (c(" ", rep(2,length(arm_names))))
+names(firstrow_labels) = c("",arm_names)
+secondrow_labels = (c(" ", rep(1,2*length(arm_names))))
+names(secondrow_labels) = c("",rep(c("N","%VAF"),length(arm_names)))
+
+kbl(SNPtable, caption = "Table 8. Prevalence of mutations in pfdhps, 4 sites in Guinea, 2017-2019", escape=FALSE) %>%
+  add_header_above(secondrow_labels) %>%
+add_header_above(firstrow_labels) %>%
+  footnote(general="VAF = variant allele frequency",general_title="") %>%
+ kable_classic(full_width = F)
+```
+```{r}
+gene = c("DHFR","DHPS")
+dhfr_haplotype_definitions = c("N51I","C59R","S108N","S436A","A437G","K540E","A581G","A613S")
+table_haplotype_collapsed = generate_haplotype_table(dhfr_haplotype_definitions,gene)
+firstrow_labels = (c(" ", rep(1,length(arm_names))))
+names(firstrow_labels) = c("",arm_names)
+rownames(table_haplotype_collapsed)[-1] = paste(substr(rownames(table_haplotype_collapsed)[-1],1,3),"/",substr(rownames(table_haplotype_collapsed)[-1],4,8),sep="")
+kbl(table_haplotype_collapsed, caption = "Table 9. Prevalence of pfdhfr and pfdhps haplotypes, 4 sites in Guinea, 2017-2019", escape=FALSE) %>%
+add_header_above(firstrow_labels) %>%
+  footnote(general=paste("Haplotypes defined at pfdhfr codons ",paste(as.numeric(gsub("[A-Z]*","",dhfr_haplotype_definitions[1:3])),collapse=" ")," and pfdhps codons " ,paste(as.numeric(gsub("[A-Z]*","",dhfr_haplotype_definitions[4:8])),collapse=" "),"; Wildtype: ",paste(substr(dhfr_haplotype_definitions[1:3],1,1),collapse=""),"/",
+           paste(substr(dhfr_haplotype_definitions[4:8],1,1),collapse=""),sep=""),general_title="") %>%
+ kable_classic(full_width = F)
+
+```
+
+
+## *pfcytb*
+
+Certain mutations in the mitochondrial *pfcytb* gene have been associated with resistance to atovaquone, a component of the antimalarial combination atovaquone-proguanil. None of the mutations were detected in this sample set.
+
+```{r cytb}
+
+SNPtable = generateSNPtable("CYTB")
+
+firstrow_labels = (c(" ", rep(2,length(arm_names))))
+names(firstrow_labels) = c("",arm_names)
+secondrow_labels = (c(" ", rep(1,2*length(arm_names))))
+names(secondrow_labels) = c("",rep(c("N","%VAF"),length(arm_names)))
+
+kbl(SNPtable, caption = "Table. Prevalence of mutations in pfcytb, 4 sites in Guinea, 2017-2019", escape=FALSE) %>%
+  add_header_above(secondrow_labels) %>%
+add_header_above(firstrow_labels) %>%
+  footnote(general="VAF = variant allele frequency",general_title="") %>%
+ kable_classic(full_width = F)
+```
+
